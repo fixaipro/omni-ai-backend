@@ -1,6 +1,69 @@
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+import openai
+import os
+import google.generativeai as genai
+import anthropic
+
+# Load API keys from environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY")
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+app = FastAPI()
+
+# Allow CORS for iframe loading
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class QueryRequest(BaseModel):
+    query: str
+
+@app.post("/ask")
+async def ask_query(request: QueryRequest):
+    q = request.query
+
+    gpt_response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": q}]
+    )['choices'][0]['message']['content']
+
+    gemini_model = genai.GenerativeModel('gemini-pro')
+    gemini_response = gemini_model.generate_content(q).text
+
+    claude_response = anthropic_client.messages.create(
+        model="claude-3-opus-20240229",
+        messages=[{"role": "user", "content": q}],
+        max_tokens=1000
+    ).content[0].text
+
+    summary_prompt = f"Summarize the following AI responses:\nGPT: {gpt_response}\nGemini: {gemini_response}\nClaude: {claude_response}"
+    summary = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": summary_prompt}]
+    )['choices'][0]['message']['content']
+
+    return {
+        "gpt": gpt_response,
+        "gemini": gemini_response,
+        "claude": claude_response,
+        "summary": summary
+    }
+
+@app.get("/", response_class=HTMLResponse)
+def root():
+    return "<h2>✅ Omni AI backend is live. Use <code>/form</code> or POST to <code>/ask</code>.</h2>"
+
 @app.get("/form", response_class=HTMLResponse)
 def serve_form():
-    return """
+    return '''
     <!DOCTYPE html>
     <html lang='en'>
     <head>
@@ -58,4 +121,4 @@ def serve_form():
       </script>
     </body>
     </html>
-    """
+    '''
