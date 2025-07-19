@@ -1,85 +1,64 @@
-# main.py
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from typing import Optional
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import openai
 import os
-from dotenv import load_dotenv
-import requests
-from duckduckgo_search import DDGS
 import google.generativeai as genai
+import anthropic
 
-# Load environment variables
-load_dotenv()
+class QueryRequest(BaseModel):
+    query: str
 
-# Required API keys
-gemini_key = os.getenv("GEMINI_API_KEY")
-mistral_key = os.getenv("MISTRAL_API_KEY")
-if not (gemini_key and mistral_key):
-    raise RuntimeError("Both GEMINI_API_KEY and MISTRAL_API_KEY must be set in environment variables.")
-
-# Configure Gemini SDK
-genai.configure(api_key=gemini_key)
 app = FastAPI()
 
-@app.post("/summary")
-async def summary_endpoint(
-    text: Optional[str] = Form(None),
-    audio: Optional[UploadFile] = File(None),
-    image: Optional[UploadFile] = File(None)
-):
-    # Determine the prompt: prefer text input
-    prompt = text or ""
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Please provide at least text input.")
+# CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # 1) Web search using DuckDuckGo via DDGS
-    with DDGS() as ddgs:
-        results = list(ddgs.text(prompt, max_results=1))
-    web_snippet = results[0].get('body', '') if results else ""
+# Load environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY")
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-    # 2) Query Gemini (text)
-    gemini_model = genai.get_model("models/gemini-pro")
-    gemini_resp = gemini_model.generate(
-        prompt=prompt,
-        temperature=0.7,
-        max_output_tokens=512
-    )
-    gemini_text = gemini_resp.text.strip()
+@app.post("/ask")
+async def ask_query(request: QueryRequest):
+    q = request.query
 
-    # 3) Query Mistral
-    mistral_url = "https://api.mistral.ai/v1/models/mistral-7b-instruct/generate"
-    headers = {
-        "Authorization": f"Bearer {mistral_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "prompt": prompt,
-        "max_tokens": 512,
-        "temperature": 0.7
-    }
-    r = requests.post(mistral_url, headers=headers, json=payload)
-    r.raise_for_status()
-    mjson = r.json()
-    mistral_text = mjson.get("choices", [{}])[0].get("text", "").strip()
+    # GPT (OpenAI)
+    gpt_response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": q}]
+    )['choices'][0]['message']['content']
 
-    # 4) Final summary via Mistral
-    summary_input = (
-        f"Web snippet: {web_snippet}\n"
-        f"Gemini: {gemini_text}\n"
-        f"Mistral: {mistral_text}\n"
-    )
-    summary_payload = {
-        "prompt": f"Summarize the key points from these:\n{summary_input}",
-        "max_tokens": 256,
-        "temperature": 0.5
-    }
-    sresp = requests.post(mistral_url, headers=headers, json=summary_payload)
-    sresp.raise_for_status()
-    sjson = sresp.json()
-    summary_text = sjson.get("choices", [{}])[0].get("text", "").strip()
+    # Gemini (Google)
+    gemini = genai.GenerativeModel('gemini-pro')
+    gemini_response = gemini.generate_content(q).text
+
+    # Claude (Anthropic)
+    claude_response = anthropic_client.messages.create(
+        model="claude-3-opus-20240229",
+        messages=[{"role": "user", "content": q}],
+        max_tokens=1000
+    ).content[0].text
+
+    # Final Summary
+    summary_prompt = f"""Summarize this:
+    GPT: {gpt_response}
+    Gemini: {gemini_response}
+    Claude: {claude_response}
+    """
+    summary = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": summary_prompt}]
+    )['choices'][0]['message']['content']
 
     return {
-        "web": web_snippet,
-        "gemini": gemini_text,
-        "mistral": mistral_text,
-        "summary": summary_text
+        "gpt": gpt_response,
+        "gemini": gemini_response,
+        "claude": claude_response,
+        "summary": summary
     }
