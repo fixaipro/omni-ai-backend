@@ -8,9 +8,8 @@ import requests
 from duckduckgo_search import ddg
 import google.generativeai as genai
 
-# Load environment variables
-env_path = os.path.join(os.path.dirname(__file__), ".env")
-load_dotenv(env_path)
+# Load environment variables from .env
+load_dotenv()
 
 # Required API keys
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -32,8 +31,8 @@ async def summary_endpoint(
 ):
     # Determine the prompt: prefer text input
     prompt = text
-n    if audio:
-        # Audio transcription not supported without STT key
+    if audio:
+        # Audio transcription not supported in this version
         prompt = prompt or ""
     if image:
         # Image analysis not implemented in this version
@@ -68,7 +67,7 @@ n    if audio:
     }
     mistral_resp = requests.post(mistral_url, headers=headers, json=payload)
     mistral_json = mistral_resp.json()
-    # Adjust if field differs\mistral_text = mistral_json.get("choices", [{}])[0].get("text", "")
+    mistral_text = mistral_json.get("choices", [{}])[0].get("text", "")
 
     # 4) Final combined summary using Mistral
     summary_prompt = (
