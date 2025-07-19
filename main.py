@@ -10,6 +10,15 @@ class QueryRequest(BaseModel):
     query: str
 
 app = FastAPI()
+from fastapi.responses import HTMLResponse, FileResponse
+
+@app.get("/", response_class=HTMLResponse)
+def read_root():
+    return "<h2>🎉 Multi-AI Chatbot Backend is Live!</h2><p>Use POST /ask to query AI engines.</p>"
+
+@app.get("/form", response_class=FileResponse)
+def serve_form():
+    return "form.html"
 
 # CORS for frontend
 app.add_middleware(
