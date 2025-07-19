@@ -4,10 +4,10 @@ from typing import Optional
 import os
 from dotenv import load_dotenv
 import requests
-from duckduckgo_search import ddg
+from duckduckgo_search import DDGS
 import google.generativeai as genai
 
-# Load environment variables from .env
+# Load environment variables
 load_dotenv()
 
 # Required API keys
@@ -28,24 +28,36 @@ async def summary_endpoint(
 ):
     # Determine the prompt: prefer text input
     prompt = text or ""
-    # audio and image are accepted but not processed in this version
     if not prompt:
         raise HTTPException(status_code=400, detail="Please provide at least text input.")
 
-    # 1) Web search using DuckDuckGo\    
-    results = ddg(prompt, max_results=1) or []
-    web_snippet = results[0].get('body') if results else ""
+    # 1) Web search using DuckDuckGo via DDGS
+    with DDGS() as ddgs:
+        results = list(ddgs.text(prompt, max_results=1))
+    web_snippet = results[0].get('body', '') if results else ""
 
     # 2) Query Gemini (text)
     gemini_model = genai.get_model("models/gemini-pro")
-    gemini_resp = gemini_model.generate(prompt=prompt, temperature=0.7, max_output_tokens=512)
+    gemini_resp = gemini_model.generate(
+        prompt=prompt,
+        temperature=0.7,
+        max_output_tokens=512
+    )
     gemini_text = gemini_resp.text.strip()
 
     # 3) Query Mistral
     mistral_url = "https://api.mistral.ai/v1/models/mistral-7b-instruct/generate"
-    hdrs = {"Authorization": f"Bearer {mistral_key}", "Content-Type": "application/json"}
-    payload = {"prompt": prompt, "max_tokens": 512, "temperature": 0.7}
-    r = requests.post(mistral_url, headers=hdrs, json=payload)
+    headers = {
+        "Authorization": f"Bearer {mistral_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "prompt": prompt,
+        "max_tokens": 512,
+        "temperature": 0.7
+    }
+    r = requests.post(mistral_url, headers=headers, json=payload)
+    r.raise_for_status()
     mjson = r.json()
     mistral_text = mjson.get("choices", [{}])[0].get("text", "").strip()
 
@@ -55,9 +67,19 @@ async def summary_endpoint(
         f"Gemini: {gemini_text}\n"
         f"Mistral: {mistral_text}\n"
     )
-    spayload = {"prompt": f"Summarize the key points from these:\n{summary_input}", "max_tokens": 256, "temperature": 0.5}
-    sresp = requests.post(mistral_url, headers=hdrs, json=spayload)
+    summary_payload = {
+        "prompt": f"Summarize the key points from these:\n{summary_input}",
+        "max_tokens": 256,
+        "temperature": 0.5
+    }
+    sresp = requests.post(mistral_url, headers=headers, json=summary_payload)
+    sresp.raise_for_status()
     sjson = sresp.json()
-    summary = sjson.get("choices", [{}])[0].get("text", "").strip()
+    summary_text = sjson.get("choices", [{}])[0].get("text", "").strip()
 
-    return {"web": web_snippet, "gemini": gemini_text, "mistral": mistral_text, "summary": summary}
+    return {
+        "web": web_snippet,
+        "gemini": gemini_text,
+        "mistral": mistral_text,
+        "summary": summary_text
+    }
