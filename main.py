@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import os
+import asyncio
 
 app = FastAPI()
 
@@ -47,6 +48,7 @@ async def ask(request: Request):
         responses = {}
 
         async with httpx.AsyncClient() as client:
+            tasks = []
             for model_id, label in models.items():
                 payload = {
                     "model": model_id,
@@ -55,13 +57,20 @@ async def ask(request: Request):
                         {"role": "user", "content": question}
                     ]
                 }
-                try:
-                    resp = await client.post(api_url, headers=headers, json=payload)
-                    resp.raise_for_status()
-                    content = resp.json()["choices"][0]["message"]["content"]
-                    responses[label] = content.strip()
-                except Exception as e:
-                    responses[label] = f"Error: {str(e)}"
+                task = client.post(api_url, headers=headers, json=payload, timeout=15.0)
+                tasks.append((label, task))
+
+            results = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
+
+            for (label, _), result in zip(tasks, results):
+                if isinstance(result, Exception):
+                    responses[label] = f"Error: {str(result)}"
+                else:
+                    try:
+                        content = result.json()["choices"][0]["message"]["content"]
+                        responses[label] = content.strip()
+                    except Exception as e:
+                        responses[label] = f"Error parsing: {str(e)}"
 
         # Simple summary logic
         summary = "\n\n".join([f"{k}: {v[:200]}..." for k, v in responses.items()])
