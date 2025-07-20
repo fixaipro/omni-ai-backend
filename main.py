@@ -1,33 +1,42 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import httpx
+import os
 
 app = FastAPI()
 
-# CORS for frontend use (Google Sites, local, etc.)
+# Enable CORS for all origins (safe for prototype)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # change to your frontend domain for production
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class Query(BaseModel):
-    question: str
-
-@app.get("/")
-async def root():
-    return {"status": "OK", "message": "Multi-AI Chatbot is live!"}
-
+# POST endpoint to handle the frontend request
 @app.post("/ask")
-async def ask_route(query: Query):
-    # Dummy response until LLM logic added
-    return {
-        "responses": {
-            "GPT": "Placeholder answer from GPT",
-            "Claude": "Placeholder answer from Claude",
-            "Gemini": "Placeholder answer from Gemini"
-        },
-        "summary": f"Unified answer to: {query.question}"
-    }
+async def ask_question(request: Request):
+    data = await request.json()
+    question = data.get("question")
+
+    if not question:
+        return {"response": "Please provide a question."}
+
+    # Call OpenAI or any mock response for now
+    try:
+        headers = {
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": question}]
+        }
+        async with httpx.AsyncClient() as client:
+            res = await client.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+            result = res.json()
+            reply = result['choices'][0]['message']['content']
+            return {"response": reply.strip()}
+    except Exception as e:
+        return {"response": f"Error: {str(e)}"}
