@@ -1,5 +1,2 @@
 fastapi
 uvicorn
-openai
-google-generativeai
-anthropic
