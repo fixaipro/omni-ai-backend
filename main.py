@@ -67,12 +67,17 @@ async def ask(request: Request):
                     responses[label] = f"Error: {str(result)}"
                 else:
                     try:
-                        content = result.json()["choices"][0]["message"]["content"]
-                        responses[label] = content.strip()
+                        json_data = result.json()
+                        if "choices" in json_data and json_data["choices"]:
+                            content = json_data["choices"][0]["message"]["content"]
+                            responses[label] = content.strip()
+                        elif "error" in json_data:
+                            responses[label] = f"API Error: {json_data['error']}"
+                        else:
+                            responses[label] = f"Unexpected response: {json_data}"
                     except Exception as e:
                         responses[label] = f"Error parsing: {str(e)}"
 
-        # Simple summary logic
         summary = "\n\n".join([f"{k}: {v[:200]}..." for k, v in responses.items()])
 
         return {
