@@ -28,7 +28,10 @@ async def ask(request: Request):
         if not question:
             return {"error": "Missing 'question' field."}
 
-        api_key = os.getenv("OPENROUTER_API_KEY") or "sk-or-your-key"
+        # Temporarily hardcoded key for testing
+        api_key = "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"
+        print(f"Loaded GPT Key: {api_key[:6]}...{api_key[-4:]}")
+
         api_url = "https://openrouter.ai/api/v1/chat/completions"
 
         headers = {
