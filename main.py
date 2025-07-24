@@ -6,7 +6,6 @@ from config import GPT_KEY, GEMINI_KEY, MISTRAL_KEY
 
 app = FastAPI()
 
-# Enable CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,12 +35,11 @@ async def ask(request: Request):
             "X-Title": "Multi-AI Omni Agent",
         }
 
-       models = {
-    "gpt-4": ("GPT", GPT_KEY),
-    "google/gemini-pro": ("Gemini", GEMINI_KEY),
-    "mistralai/mixtral-8x7b": ("Mistral", MISTRAL_KEY)
-}
-
+        models = {
+            "gpt-4": ("GPT", GPT_KEY),
+            "google/gemini-pro": ("Gemini", GEMINI_KEY),
+            "mistralai/mixtral-8x7b": ("Mistral", MISTRAL_KEY)
+        }
 
         responses = {}
 
