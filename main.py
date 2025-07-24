@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-import os
 import asyncio
+from config import GPT_KEY, GEMINI_KEY, MISTRAL_KEY
 
 app = FastAPI()
 
@@ -28,29 +28,26 @@ async def ask(request: Request):
         if not question:
             return {"error": "Missing 'question' field."}
 
-        # Add your actual OpenRouter key here
-        api_key = "sk-or-..."  # ← Replace this with your OpenRouter key
-
         api_url = "https://openrouter.ai/api/v1/chat/completions"
 
         headers = {
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://fixaiproltd.com",
             "X-Title": "Multi-AI Omni Agent",
         }
 
         models = {
-            "gpt-4": "GPT",
-            "google/gemini-pro": "Gemini",
-            "mistralai/mixtral-8x7b": "Mistral"
+            "gpt-4": ("GPT", GPT_KEY),
+            "google/gemini-pro": ("Gemini", GEMINI_KEY),
+            "mistralai/mixtral-8x7b": ("Mistral", MISTRAL_KEY)
         }
 
         responses = {}
 
         async with httpx.AsyncClient() as client:
             tasks = []
-            for model_id, label in models.items():
+            for model_id, (label, key) in models.items():
+                headers["Authorization"] = f"Bearer {key}"
                 payload = {
                     "model": model_id,
                     "messages": [
