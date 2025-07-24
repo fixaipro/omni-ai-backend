@@ -28,9 +28,8 @@ async def ask(request: Request):
         if not question:
             return {"error": "Missing 'question' field."}
 
-        # Temporarily hardcoded key for testing
-        api_key = ""
-        print(f"Loaded GPT Key: {api_key[:6]}...{api_key[-4:]}")
+        # Add your actual OpenRouter key here
+        api_key = "sk-or-..."  # ← Replace this with your OpenRouter key
 
         api_url = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -42,10 +41,9 @@ async def ask(request: Request):
         }
 
         models = {
-            "gpt-4": "GPT-4",
-            "claude-3-opus": "Claude",
+            "gpt-4": "GPT",
             "google/gemini-pro": "Gemini",
-            "mistralai/mixtral-8x7b": "Grok"
+            "mistralai/mixtral-8x7b": "Mistral"
         }
 
         responses = {}
