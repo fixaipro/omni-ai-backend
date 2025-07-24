@@ -36,11 +36,12 @@ async def ask(request: Request):
             "X-Title": "Multi-AI Omni Agent",
         }
 
-        models = {
-            "gpt-4": ("GPT", OPENROUTER_KEY),
-            "google/gemini-pro": ("Gemini", GEMINI_KEY),
-            "mistralai/mixtral-8x7b": ("Mistral", MISTRAL_KEY)
-        }
+       models = {
+    "gpt-4": ("GPT", GPT_KEY),
+    "google/gemini-pro": ("Gemini", GEMINI_KEY),
+    "mistralai/mixtral-8x7b": ("Mistral", MISTRAL_KEY)
+}
+
 
         responses = {}
 
